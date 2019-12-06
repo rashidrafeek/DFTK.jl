@@ -90,6 +90,23 @@ function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
 end
 
 
+function get_mixing_temperature(basis, temperature, εF, eigenvalues, ldos_nos, ldos_maxfactor)
+    factor = 1
+    nos = NOS(εF, basis, eigenvalues, temperature=temperature)
+    for _ in 1:10
+        nos > ldos_nos && break
+        factor = min(factor * (ldos_nos / nos + 0.01), ldos_maxfactor)
+        nos = NOS(εF, basis, eigenvalues, temperature=factor * temperature)
+        factor >= ldos_maxfactor && break
+    end
+    if nos < ldos_nos && factor < ldos_maxfactor
+        @warn("Small NOS for LDOS computation", nos,
+              temperature_factor=factor)
+    end
+    (temperature=factor * temperature, nos=nos)
+end
+
+
 """
 Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 """
@@ -131,6 +148,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     # TODO support other mixing types
     function fixpoint_map(x)
         n_iter += 1
+
+        # Get ρout by diagonalizing the Hamiltonian
         ρin = from_real(basis, x)
 
         # Build next Hamiltonian, diagonalize it, get ρout
@@ -155,10 +174,23 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                              ρ=ρout, eigenvalues=eigenvalues, εF=εF)
         end
 
+        # Compute ldos if needed ...
+        # TODO Abstract that more cleanly inside HybridMixing
+        ldos = nothing
+        nos = nothing
+        ldos_temperature = nothing
+        if (isa(mixing, HybridMixing) || isa(mixing, χ0Mixing)) && model.temperature > 0
+            ldos_temperature, nos = get_mixing_temperature(basis, model.temperature, εF,
+                                                           eigenvalues, mixing.ldos_nos,
+                                                           mixing.ldos_maxfactor)
+            ldos = LDOS(εF, basis, eigenvalues, ψ, temperature=ldos_temperature)
+        end
+
         # Update info with results gathered so far
         info = (ham=ham, basis=basis, energies=energies, ρin=ρin, ρout=ρout,
                 eigenvalues=eigenvalues, occupation=occupation, εF=εF, n_iter=n_iter, ψ=ψ,
-                diagonalization=nextstate.diagonalization)
+                diagonalization=nextstate.diagonalization, ldos=ldos, nos=nos,
+                ldos_temperature=ldos_temperature)
 
         # Apply mixing and pass it the full info as kwargs
         ρnext = mix(mixing, basis, ρin, ρout; info...)
