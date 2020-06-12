@@ -181,7 +181,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         ldos = nothing
         nos = nothing
         ldos_temperature = nothing
-        if (isa(mixing, HybridMixing) || isa(mixing, χ0Mixing)) && model.temperature > 0
+        if any(isa.(Ref(mixing), (HybridMixing, χ0Mixing, CombinedMixing))) && model.temperature > 0
             ldos_temperature, nos = get_mixing_temperature(basis, model.temperature, εF,
                                                            eigenvalues, mixing.ldos_nos,
                                                            mixing.ldos_maxfactor)
