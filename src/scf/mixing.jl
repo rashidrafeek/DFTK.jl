@@ -163,7 +163,7 @@ struct CombinedMixing
     ldos_nos::Real
 end
 
-function CombinedMixing(;α=1, εr=10, kF=1, localizer=:one, w_ldos=1, w_resta=1, w_kerker=0)
+function CombinedMixing(;α=1, εr=10, kF=1, localizer=:one, w_ldos=0, w_resta=1, w_kerker=0)
     ldos_maxfactor = 1
     ldos_nos = 1
     CombinedMixing(α, εr, kF, localizer, w_ldos, w_kerker, w_resta, ldos_maxfactor, ldos_nos)
