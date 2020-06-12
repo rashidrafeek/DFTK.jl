@@ -93,6 +93,8 @@ end
 function get_mixing_temperature(basis, temperature, εF, eigenvalues, ldos_nos, ldos_maxfactor)
     factor = 1
     nos = NOS(εF, basis, eigenvalues, temperature=temperature)
+    ldos_maxfactor == 1 && return (temperature=temperature, nos=nos)
+
     for _ in 1:10
         nos > ldos_nos && break
         factor = min(factor * (ldos_nos / nos + 0.01), ldos_maxfactor)
