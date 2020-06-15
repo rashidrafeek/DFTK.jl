@@ -179,8 +179,9 @@ function mix(mixing::CombinedMixing, basis, ρin::RealFourierArray, ρout::RealF
 
     @assert mixing.localizer in (:one, :ρ)
     if mixing.localizer == :ρ
-        L = sqrt.(ρout.real ./ sum(ρout.real))
-        apply_localizer(x) = from_real(basis, L .* x.real)
+        ρavg = sum(ρout.real) ./ length(ρout.real)
+        L = sqrt.(ρout.real ./ ρavg)
+        apply_localizer = x -> from_real(basis, L .* x.real)
     else
         apply_localizer = identity
     end
@@ -210,8 +211,8 @@ function mix(mixing::CombinedMixing, basis, ρin::RealFourierArray, ρout::RealF
         end
 
         if mixing.w_ldos > 0 && ldos !== nothing
-            Jδρ .-= @. mixing.w_ldos * (-ldos * δV.real
-                                        + sum(ldos .* δV.real) * ldos / sum(ldos))
+            Jδρ .-= mixing.w_ldos .* (-ldos .* δV.real
+                                      .+ sum(ldos .* δV.real) .* ldos ./ sum(ldos))
         end
 
         # Poor man's zero DC component before return
