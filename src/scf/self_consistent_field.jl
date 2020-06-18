@@ -22,10 +22,8 @@ function next_density(ham::Hamiltonian;
 
     # Update density from new ψ
     occupation, εF = find_occupation(ham.basis, eigres.λ)
-    ρnew = compute_density(ham.basis, eigres.X, occupation)
-
-    (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew,
-     diagonalization=eigres)
+    (ρnew,ρspinnew) = compute_spin_densities(ham.basis, eigres.X, occupation)
+    (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew,ρspin=ρspinnew,diagonalization=eigres)
 end
 
 function scf_default_callback(info)
@@ -120,7 +118,10 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     end
     occupation = nothing
     eigenvalues = nothing
+    n_spin=number_of_spins(basis.model)
     ρout = ρ
+    ρsout = ρ
+    #ρsout = zeros(size(ρ))
     εF = nothing
     n_iter = 0
     energies = nothing
@@ -133,26 +134,35 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         n_iter += 1
         ρin = from_real(basis, x)
 
+	if n_spin == 2
+                #(ρin,ρsin)=reshape(from_real(basis,x),size(ρ))
+                (ρin,ρsin)=reshape(from_real(basis,x),(15,15,15,2))
+                (ρin,ρsin)=reshape(x,(15,15,15,2))
+        else
+        # x has 2 blocks: total and spin density
+            (ρin,ρsin)=(from_real(basis, x),nothing)
+        end
+
         # Build next Hamiltonian, diagonalize it, get ρout
         if n_iter == 1 # first iteration
             _, ham = energy_hamiltonian(basis, nothing, nothing;
-                                        ρ=ρin, eigenvalues=nothing, εF=nothing)
+                                        ρ=ρin, ρspin=ρsin, eigenvalues=nothing, εF=nothing)
         else
             # Note that ρin is not the density of ψ, and the eigenvalues
             # are not the self-consistent ones, which makes this energy non-variational
             energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                               ρ=ρin, eigenvalues=eigenvalues, εF=εF)
+                                               ρ=ρin, ρspin=ρsin, eigenvalues=eigenvalues, εF=εF)
         end
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
                                  miniter=1, tol=determine_diagtol(info))
-        ψ, eigenvalues, occupation, εF, ρout = nextstate
+        ψ, eigenvalues, occupation, εF, ρout, ρsout = nextstate
 
         # Compute the energy of the new state
         if compute_consistent_energies
             energies, _ = energy_hamiltonian(basis, ψ, occupation;
-                                             ρ=ρout, eigenvalues=eigenvalues, εF=εF)
+                                             ρ=ρout, ρspin=ρsout, eigenvalues=eigenvalues, εF=εF)
         end
 
         # Update info with results gathered so far
@@ -167,10 +177,21 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         callback(info)
         is_converged(info) && return x
 
-        ρnext.real
+	if n_spin == 2
+            hcat(ρnext.real,ρsout.real)
+        else
+            ρnext.real
+        end
+    end
+    println("dims of density: $(size(ρout.real))")
+    if n_spin == 2
+        ρcatr=cat(ρout.real,ρsout.real,dims=4)
+        println("dims of cat: $(size(ρcatr))")
+    else
+        ρcatr=ρout.real
     end
 
-    fpres = solver(fixpoint_map, ρout.real, maxiter; tol=min(10eps(T), tol / 10))
+    fpres = solver(fixpoint_map, ρcatr, maxiter; tol=min(10eps(T), tol / 10))
     # Tolerance is only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map. Also we do not use the return value of fpres but rather the
     # one that got updated by fixpoint_map
@@ -179,7 +200,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     # ψ is consistent with ρout, so we return that. We also perform
     # a last energy computation to return a correct variational energy
     energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                       ρ=ρout, eigenvalues=eigenvalues, εF=εF)
+                                       ρ=ρout, ρspin=ρsout, eigenvalues=eigenvalues, εF=εF)
 
     (ham=ham, energies=energies, converged=fpres.converged,
      ρ=ρout, ψ=ψ, eigenvalues=eigenvalues, occupation=occupation, εF=εF)

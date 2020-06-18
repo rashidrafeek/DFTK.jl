@@ -122,6 +122,16 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops, symops=nothing;
                                 fft_size=determine_grid_size(model, Ecut)) where {T <: Real}
+    model.spin_polarization in (:none, :collinear, :spinless) || (
+        error("$(model.spin_polarization) not implemented"))
+    spin = (:undefined,)
+    if model.spin_polarization == :collinear
+        spin = (:up, :down)
+    elseif model.spin_polarization == :none
+        spin = (:both, )
+    elseif model.spin_polarization == :spinless
+        spin = (:spinless, )
+    end
     @assert Ecut > 0
     fft_size = Tuple{Int, Int, Int}(fft_size)
 
@@ -145,8 +155,14 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     kweights = [length(symops) for symops in ksymops]
     kweights = T.(kweights) ./ sum(kweights)
 
+    if model.spin_polarization == :collinear
+        ksymops=collect(Iterators.flatten(zip(ksymops,ksymops)))
+        kweights=collect(Iterators.flatten(zip(kweights,kweights)))
+    end
+
     # Sanity checks
-    @assert length(kcoords) == length(ksymops)
+    @assert length(kcoords) == length(ksymops)/length(spin)
+    @assert length(kcoords) == length(kweights)/length(spin)
     max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
     @assert(Ecut ≤ max_E, "Ecut should be less than the maximal kinetic energy " *
             "the grid supports (== $max_E)")

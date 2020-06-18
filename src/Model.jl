@@ -175,7 +175,7 @@ end
 Maximal occupation of a state (2 for non-spin-polarized electrons, 1 otherwise).
 """
 function filled_occupation(model)
-    @assert model.spin_polarization in (:none, :spinless)
+    @assert model.spin_polarization in (:none, :spinless, :collinear)
     if model.spin_polarization == :none
         @assert model.n_electrons % 2 == 0
         filled_occ = 2
@@ -183,4 +183,17 @@ function filled_occupation(model)
         filled_occ = 1
     end
     filled_occ
+end
+
+"""
+Number of spins
+"""
+function number_of_spins(model)
+    @assert model.spin_polarization in (:none, :spinless, :collinear)
+    if model.spin_polarization == :collinear
+        n_spin = 2
+    else
+        n_spin = 1
+    end
+    n_spin
 end
