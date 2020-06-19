@@ -132,12 +132,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     # TODO support other mixing types
     function fixpoint_map(x)
         n_iter += 1
-        ρin = from_real(basis, x)
-
 	if n_spin == 2
-                #(ρin,ρsin)=reshape(from_real(basis,x),size(ρ))
-                (ρin,ρsin)=reshape(from_real(basis,x),(15,15,15,2))
-                (ρin,ρsin)=reshape(x,(15,15,15,2))
+                (ρin,ρsin)=(from_real(basis,x[:,:,:,1]),from_real(basis,x[:,:,:,2]))
         else
         # x has 2 blocks: total and spin density
             (ρin,ρsin)=(from_real(basis, x),nothing)
@@ -178,15 +174,13 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         is_converged(info) && return x
 
 	if n_spin == 2
-            hcat(ρnext.real,ρsout.real)
+            cat(ρnext.real,ρsout.real, dims=4)
         else
             ρnext.real
         end
     end
-    println("dims of density: $(size(ρout.real))")
     if n_spin == 2
         ρcatr=cat(ρout.real,ρsout.real,dims=4)
-        println("dims of cat: $(size(ρcatr))")
     else
         ρcatr=ρout.real
     end

@@ -86,7 +86,6 @@ end
 
     n_spin=number_of_spins(basis.model)
     n_k = floor(Int, length(basis.kpoints)/n_spin)
-    println("number of spins: $n_spin" )
     # Sanity checks
     @assert n_k == length(ψ)/n_spin
     @assert n_k == length(occupation)/n_spin
@@ -108,8 +107,6 @@ end
     end
 
     Gs = collect(G_vectors(basis))
-    #ρspin = 0.
-    #ρout = (;)
     if n_spin == 2
         # Allocate an accumulator for ρ in each thread
         ρaccus_α = [similar(ψ[1][:, 1], basis.fft_size) for ithread in 1:Threads.nthreads()]
@@ -132,11 +129,11 @@ end
         ρ_magnetic=ρaccus_α-ρaccus_β
         ρ_total=ρaccus_α+ρaccus_β
         count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
-        ρtot=from_fourier(basis, sum(ρ_total) / (count/n_spin); assume_real=true)
+        ρtot=from_fourier(basis, sum(ρ_total) / (count/n_spin))
+        #instead of the spin density maybe the weird zipped alpha and beta densities could be passed? 
         #ρspinaccus=collect(Iterators.flatten(zip(ρaccus_α,ρaccus_β)))
-        #ρspin=from_fourier(basis, sum(ρspinaccus) / (count/n_spin); assume_real=true)
-        ρspin=from_fourier(basis, sum(ρ_magnetic) / (count/n_spin); assume_real=true)
-        println("dim of density arrays: $(size(ρtot))")
+        #ρspin=from_fourier(basis, sum(ρspinaccus) / (count/n_spin))
+        ρspin=from_fourier(basis, sum(ρ_magnetic) / (count/n_spin))
         (ρtot,ρspin)
     else
         ρaccus = [similar(ψ[1][:, 1], basis.fft_size) for ithread in 1:Threads.nthreads()]
@@ -149,9 +146,7 @@ end
         end
         ρ_total=ρaccus
         count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
-        ρtot=from_fourier(basis, sum(ρ_total) / (count/n_spin); assume_real=true)
-        println("dim of density arrays: $(size(ρtot.real))")
-        #(ρtot,ρspin)
+        ρtot=from_fourier(basis, sum(ρ_total) / (count/n_spin))
         (ρtot,nothing)
     end
 end
