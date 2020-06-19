@@ -176,7 +176,6 @@ function mix(mixing::CombinedMixing, basis, ρin::RealFourierArray, ρout::RealF
     C0 = 1 - εr
     Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
 
-    @assert mixing.localizer in (:one, :ρ)
     apply_sqrtL = identity
     if mixing.localizer != identity
         sqrtL = sqrt.(mixing.localizer.(r_vectors(basis)))
