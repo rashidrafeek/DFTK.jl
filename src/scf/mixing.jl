@@ -146,14 +146,13 @@ Mixture of HybridMixing, KerkerMixing and RestaMixing
 ```
 where ``C_0 = 1 - ε_r`` and the same convention for parameters is used as before.
 Additionally there are the weights `w_{LDOS}` `w_{Kerker}` `w_{Resta}`
-and the localizer function `L(r)`. For now `localizer` can take the values `:ρ`
-and `:one` corresponding to `L(r) = 1` and `L(r) = ρ(r) / sum(ρ)`.
+and the real-space localizer function `L(r)`.
 """
 struct CombinedMixing
     α::Real
     εr::Real
     kF::Real
-    localizer::Symbol
+    localizer::Function  # Function r -> L(r), where r are in fractional real-space coordinates
     w_ldos::Real
     w_kerker::Real
     w_resta::Real
@@ -163,7 +162,7 @@ struct CombinedMixing
     ldos_nos::Real
 end
 
-function CombinedMixing(;α=1, εr=10, kF=1, localizer=:one, w_ldos=0, w_resta=1, w_kerker=0)
+function CombinedMixing(;α=1, εr=10, kF=1, localizer=identity, w_ldos=0, w_resta=1, w_kerker=0)
     ldos_maxfactor = 1
     ldos_nos = 1
     CombinedMixing(α, εr, kF, localizer, w_ldos, w_kerker, w_resta, ldos_maxfactor, ldos_nos)
@@ -178,12 +177,10 @@ function mix(mixing::CombinedMixing, basis, ρin::RealFourierArray, ρout::RealF
     Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
 
     @assert mixing.localizer in (:one, :ρ)
-    if mixing.localizer == :ρ
-        ρavg = sum(ρout.real) ./ length(ρout.real)
-        L = sqrt.(ρout.real ./ ρavg)
-        apply_localizer = x -> from_real(basis, L .* x.real)
-    else
-        apply_localizer = identity
+    apply_sqrtL = identity
+    if mixing.localizer != identity
+        sqrtL = sqrt.(mixing.localizer.(r_vectors(basis)))
+        apply_sqrtL = x -> from_real(basis, sqrtL .* x.real)
     end
 
     # Solve J Δρ = ΔF with J = (1 - χ0 vc) and χ_0 given as in the docstring of the class
@@ -204,10 +201,10 @@ function mix(mixing::CombinedMixing, basis, ρin::RealFourierArray, ρout::RealF
         end
 
         if mixing.w_resta > 0
-            loc_δV = apply_localizer(δV).fourier
+            loc_δV = apply_sqrtL(δV).fourier
             resta_loc_δV =  @. (mixing.w_resta * C0 * kF^2 * Gsq / 4T(π)
                                                / (kF^2 - C0 * Gsq) * loc_δV)
-            Jδρ .-= apply_localizer(from_fourier(basis, resta_loc_δV)).real
+            Jδρ .-= apply_sqrtL(from_fourier(basis, resta_loc_δV)).real
         end
 
         if mixing.w_ldos > 0 && ldos !== nothing
