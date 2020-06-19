@@ -103,7 +103,7 @@ end
 
 function mix(mixing::HybridMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray;
              ldos=nothing, kwargs...)
-    ldos === nothing && return mix(SimpleMixing(α=α), basis, ρin, ρout)
+    ldos === nothing && return mix(SimpleMixing(α=mixing.α), basis, ρin, ρout)
 
     # blur the LDOS
     if mixing.G_blur < Inf
