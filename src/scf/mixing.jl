@@ -156,7 +156,7 @@ struct CombinedMixing
     w_ldos::Real
     w_kerker::Real
     w_resta::Real
-    Gblur::Real   # Width of Gaussian filter applied to LDOS in reciprocal space.
+    G_blur::Real   # Width of Gaussian filter applied to LDOS in reciprocal space.
 
     # These are needed for compatibility now
     ldos_maxfactor::Real
@@ -166,7 +166,7 @@ end
 function CombinedMixing(;α=1, εr=10, kF=1, localizer=identity, w_ldos=0, w_resta=1, w_kerker=0, G_blur=Inf)
     ldos_maxfactor = 1
     ldos_nos = 1
-    CombinedMixing(α, εr, kF, localizer, w_ldos, w_kerker, w_resta, ldos_maxfactor, ldos_nos, G_blur)
+    CombinedMixing(α, εr, kF, localizer, w_ldos, w_kerker, w_resta, G_blur, ldos_maxfactor, ldos_nos)
 end
 
 function mix(mixing::CombinedMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray;
