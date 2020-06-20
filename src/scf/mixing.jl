@@ -156,16 +156,17 @@ struct CombinedMixing
     w_ldos::Real
     w_kerker::Real
     w_resta::Real
+    Gblur::Real   # Width of Gaussian filter applied to LDOS in reciprocal space.
 
     # These are needed for compatibility now
     ldos_maxfactor::Real
     ldos_nos::Real
 end
 
-function CombinedMixing(;α=1, εr=10, kF=1, localizer=identity, w_ldos=0, w_resta=1, w_kerker=0)
+function CombinedMixing(;α=1, εr=10, kF=1, localizer=identity, w_ldos=0, w_resta=1, w_kerker=0, G_blur=Inf)
     ldos_maxfactor = 1
     ldos_nos = 1
-    CombinedMixing(α, εr, kF, localizer, w_ldos, w_kerker, w_resta, ldos_maxfactor, ldos_nos)
+    CombinedMixing(α, εr, kF, localizer, w_ldos, w_kerker, w_resta, ldos_maxfactor, ldos_nos, G_blur)
 end
 
 function mix(mixing::CombinedMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray;
@@ -180,6 +181,14 @@ function mix(mixing::CombinedMixing, basis, ρin::RealFourierArray, ρout::RealF
     if mixing.localizer != identity
         sqrtL = sqrt.(mixing.localizer.(r_vectors(basis)))
         apply_sqrtL = x -> from_real(basis, sqrtL .* x.real)
+    end
+
+    # blur the LDOS
+    if mixing.G_blur < Inf && ldos !== nothing
+        blur_factor(G) = exp(-(norm(G) / mixing.G_blur)^2)
+        ldos_fourier = r_to_G(basis, complex.(ldos))
+        ldos_fourier .*= blur_factor.(basis.model.recip_lattice * G for G in G_vectors(basis))
+        ldos = real.(G_to_r(basis, ldos_fourier))
     end
 
     # Solve J Δρ = ΔF with J = (1 - χ0 vc) and χ_0 given as in the docstring of the class
