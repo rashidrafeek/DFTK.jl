@@ -20,7 +20,7 @@ struct TermXc <: Term
     scaling_factor::Real
 end
 
-function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
+function ene_ops(term::TermXc, ψ, occ; ρ, ρspin, kwargs...)
     basis = term.basis
     T = eltype(basis)
     model = basis.model
@@ -33,7 +33,11 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
 
     # Take derivatives of the density if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    density = DensityDerivatives(basis, max_ρ_derivs, ρ)
+    if model.spin_polarization == :collinear
+        density = DensityDerivatives(basis, max_ρ_derivs, ρ, ρspin)
+    else
+        density = DensityDerivatives(basis, max_ρ_derivs, ρ)
+    end
 
     potential = zeros(T, basis.fft_size)
     zk = zeros(T, basis.fft_size)  # Energy per unit particle
@@ -173,6 +177,7 @@ struct DensityDerivatives
     basis
     max_derivative::Int
     ρ         # density on real-space grid
+    ρ_zipped  # ρα and ρβ zipped together
     ∇ρ_real   # density gradient on real-space grid
     σ_real    # contracted density gradient on real-space grid
 end
@@ -180,9 +185,9 @@ end
 """
 DOCME compute density in real space and its derivatives starting from ρ
 """
-function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray)
+function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray,ρspin::RealFourierArray)
     model = basis.model
-    @assert model.spin_polarization == :none "Only spin_polarization == :none implemented."
+    #@assert model.spin_polarization == :none "Only spin_polarization == :none implemented."
     function ifft(x)
         tmp = G_to_r(basis, x)
         check_real(tmp)
@@ -200,12 +205,23 @@ function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray
         # TODO The above assumes CPU arrays
         σ_real = sum(∇ρ_real[α] .* ∇ρ_real[α] for α in 1:3)
     end
+    ρα = (ρ + ρspin)/2
+    ρβ = (ρ - ρspin)/2
+    ρ_zipped=collect(Iterators.flatten(zip(ρα,ρβ)))
 
-    DensityDerivatives(basis, max_derivative, ρ.real, ∇ρ_real, σ_real)
+    if model.spin_polarization == :collinear
+        DensityDerivatives(basis, max_derivative, ρ_zipped.real, ∇ρ_real, σ_real)
+    else
+        DensityDerivatives(basis, max_derivative, ρ.real, ∇ρ_real, σ_real)
+    end
 end
 
 function input_kwargs(family, density)
+    if model.spin_polarization == :collinear
+    family == :lda && return (rho=density.ρ_zipped, )
+    else
     family == :lda && return (rho=density.ρ, )
+    end
     family == :gga && return (rho=density.ρ, sigma=density.σ_real)
     return NamedTuple()
 end
