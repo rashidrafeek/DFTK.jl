@@ -161,12 +161,13 @@ struct CombinedMixing
     # These are needed for compatibility now
     ldos_maxfactor::Real
     ldos_nos::Real
+    verbose::Bool
 end
 
-function CombinedMixing(;α=1, εr=10, kF=1, localizer=identity, w_ldos=0, w_resta=1, w_kerker=0, G_blur=Inf)
+function CombinedMixing(;α=1, εr=10, kF=1, localizer=identity, w_ldos=0, w_resta=1, w_kerker=0, G_blur=Inf, verbose=false)
     ldos_maxfactor = 1
     ldos_nos = 1
-    CombinedMixing(α, εr, kF, localizer, w_ldos, w_kerker, w_resta, G_blur, ldos_maxfactor, ldos_nos)
+    CombinedMixing(α, εr, kF, localizer, w_ldos, w_kerker, w_resta, G_blur, ldos_maxfactor, ldos_nos, verbose)
 end
 
 function mix(mixing::CombinedMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray;
@@ -224,7 +225,7 @@ function mix(mixing::CombinedMixing, basis, ρin::RealFourierArray, ρout::RealF
         vec(real(Jδρ .-= sum(Jδρ) / length(Jδρ)))
     end
     J = LinearMap(Jop, length(ρin))
-    x = gmres(J, ΔF)
+    x = gmres(J, ΔF, verbose=mixing.verbose)
     Δρ = devec(x)
     Δρ .-= sum(Δρ) / length(Δρ)  # Poor man's zero DC component
 
