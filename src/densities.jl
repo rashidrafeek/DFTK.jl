@@ -89,10 +89,10 @@ end
     # Sanity checks
     @assert n_k == length(ψ)/n_spin
     @assert n_k == length(occupation)/n_spin
-    #for ik in 1:n_k
-    #    @assert length(G_vectors(basis.kpoints[n_spin*ik])) == size(ψ[n_spin*ik], 1)
-    #    @assert length(occupation[n_spin*ik]) == size(ψ[n_spin*ik], 2)
-    #end
+    for ik in 1:n_k
+        @assert length(G_vectors(basis.kpoints[n_spin*ik])) == size(ψ[n_spin*ik], 1)
+        @assert length(occupation[n_spin*ik]) == size(ψ[n_spin*ik], 2)
+    end
     @assert n_k > 0
 
 
@@ -130,9 +130,6 @@ end
         ρ_total=ρaccus_α+ρaccus_β
         count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
         ρtot=from_fourier(basis, sum(ρ_total) / (count/n_spin))
-        #instead of the spin density maybe the weird zipped alpha and beta densities could be passed? 
-        #ρspinaccus=collect(Iterators.flatten(zip(ρaccus_α,ρaccus_β)))
-        #ρspin=from_fourier(basis, sum(ρspinaccus) / (count/n_spin))
         ρspin=from_fourier(basis, sum(ρ_magnetic) / (count/n_spin))
         (ρtot,ρspin)
     else
@@ -144,9 +141,8 @@ end
                 accumulate_over_symops!(ρaccu, ρ_k, basis, basis.ksymops[ik], Gs)
             end
         end
-        ρ_total=ρaccus
         count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
-        ρtot=from_fourier(basis, sum(ρ_total) / (count/n_spin))
+        ρtot=from_fourier(basis, sum(ρaccus) / count)
         (ρtot,nothing)
     end
 end

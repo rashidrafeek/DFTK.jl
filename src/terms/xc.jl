@@ -20,7 +20,7 @@ struct TermXc <: Term
     scaling_factor::Real
 end
 
-function ene_ops(term::TermXc, ψ, occ; ρ, ρspin, kwargs...)
+function ene_ops(term::TermXc, ψ, occ; ρ, ρspin=:nothing, kwargs...)
     basis = term.basis
     T = eltype(basis)
     model = basis.model
@@ -177,7 +177,6 @@ struct DensityDerivatives
     basis
     max_derivative::Int
     ρ         # density on real-space grid
-    ρ_zipped  # ρα and ρβ zipped together
     ∇ρ_real   # density gradient on real-space grid
     σ_real    # contracted density gradient on real-space grid
 end
@@ -185,9 +184,10 @@ end
 """
 DOCME compute density in real space and its derivatives starting from ρ
 """
+#could be one function
 function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray,ρspin::RealFourierArray)
     model = basis.model
-    #@assert model.spin_polarization == :none "Only spin_polarization == :none implemented."
+    @assert model.spin_polarization == :collinear 
     function ifft(x)
         tmp = G_to_r(basis, x)
         check_real(tmp)
@@ -209,15 +209,35 @@ function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray
     ρβ = (ρ - ρspin)/2
     ρ_zipped=collect(Iterators.flatten(zip(ρα,ρβ)))
 
-    if model.spin_polarization == :collinear
-        DensityDerivatives(basis, max_derivative, ρ_zipped.real, ∇ρ_real, σ_real)
-    else
-        DensityDerivatives(basis, max_derivative, ρ.real, ∇ρ_real, σ_real)
+    DensityDerivatives(basis, max_derivative, ρ_zipped.real, ∇ρ_real, σ_real)
+end
+
+function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray)
+    model = basis.model
+    @assert model.spin_polarization == :none 
+    function ifft(x)
+        tmp = G_to_r(basis, x)
+        check_real(tmp)
+        real(tmp)
     end
+
+    ρF = ρ.fourier
+    σ_real = nothing
+    ∇ρ_real = nothing
+    if max_derivative < 0 || max_derivative > 1
+        error("max_derivative not in [0, 1]")
+    elseif max_derivative > 0
+        ∇ρ_real = [ifft(im * [(model.recip_lattice * G)[α] for G in G_vectors(basis)] .* ρF)
+                   for α in 1:3]
+        # TODO The above assumes CPU arrays
+        σ_real = sum(∇ρ_real[α] .* ∇ρ_real[α] for α in 1:3)
+    end
+
+    DensityDerivatives(basis, max_derivative, ρ.real, ∇ρ_real, σ_real)
 end
 
 function input_kwargs(family, density)
-    if model.spin_polarization == :collinear
+    if  density.basis.model.spin_polarization == :collinear
     family == :lda && return (rho=density.ρ_zipped, )
     else
     family == :lda && return (rho=density.ρ, )
